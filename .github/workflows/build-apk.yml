@@ -1,10 +1,9 @@
-name: Build APK
+name: Build Android APK
 
 on:
   push:
-    branches: [ main ]
-  pull_request:
-    branches: [ main ]
+    branches:
+      - main
   workflow_dispatch:
 
 jobs:
@@ -12,52 +11,100 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - uses: actions/checkout@v3
-    
-    - name: Extract and setup project
-      run: |
-        cd /home/runner/work/pokescanner/pokescanner
-        unzip -o "*.zip" -d temp_extract
-        cd temp_extract
-        find . -maxdepth 1 -type f -exec mv {} .. \;
-        find . -maxdepth 1 -type d ! -name . -exec mv {} .. \;
-        cd ..
-        rm -rf temp_extract
-        ls -la
-    
-    - name: Setup Node.js
-      uses: actions/setup-node@v3
-      with:
-        node-version: '22'
-    
-    - name: Setup Java
-      uses: actions/setup-java@v3
-      with:
-        distribution: 'temurin'
-        java-version: '17'
-    
-    - name: Setup Android SDK
-      uses: android-actions/setup-android@v2
-    
-    - name: Install dependencies
-      run: npm install -g pnpm && pnpm install
-    
-    - name: Build web app
-      run: pnpm run build
-    
-    - name: Install Capacitor CLI
-      run: npm install -g @capacitor/cli
-    
-    - name: Sync Capacitor
-      run: npx cap sync android
-    
-    - name: Build Android APK
-      run: |
-        cd android
-        ./gradlew assembleDebug
-    
-    - name: Upload APK
-      uses: actions/upload-artifact@v4
-      with:
-        name: pokescanner-debug.apk
-        path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Find and extract ZIP
+        run: |
+          # Find the ZIP file (handle any filename)
+          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" -type f | head -1)
+          
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: No ZIP file found in repository root"
+            ls -la
+            exit 1
+          fi
+          
+          echo "Found ZIP: $ZIP_FILE"
+          
+          # Extract to current directory
+          unzip -q "$ZIP_FILE"
+          
+          # List what was extracted
+          echo "Extracted contents:"
+          ls -la
+          
+          # Find package.json to locate project root
+          PROJ_ROOT=$(find . -maxdepth 3 -name "package.json" -type f | head -1 | xargs dirname)
+          
+          if [ -z "$PROJ_ROOT" ]; then
+            echo "ERROR: package.json not found after extraction"
+            exit 1
+          fi
+          
+          echo "Project root: $PROJ_ROOT"
+          
+          # Copy everything from project root to working directory
+          cp -r "$PROJ_ROOT"/* .
+          cp -r "$PROJ_ROOT"/.[^.]* . 2>/dev/null || true
+          
+          # Verify
+          ls -la package.json
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+      
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      
+      - name: Build web app
+        run: pnpm run build
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      
+      - name: Install Capacitor CLI
+        run: npm install -g @capacitor/cli
+      
+      - name: Sync Capacitor
+        run: |
+          npx cap sync android
+      
+      - name: Build APK
+        run: |
+          cd android
+          ./gradlew assembleDebug
+      
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pokescanner-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+      
+      - name: Create Release
+        if: success()
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: apk-${{ github.run_number }}
+          release_name: APK Build #${{ github.run_number }}
+          body: |
+            ✅ APK built successfully!
+            Download: pokescanner-apk
+          draft: false
+          prerelease: false
