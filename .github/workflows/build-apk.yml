@@ -14,8 +14,11 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
+    - name: List files
+      run: ls -la
+    
     - name: Extract android.zip
-      run: unzip -o android.zip
+      run: unzip -o android.zip && ls -la
     
     - name: Setup Node.js
       uses: actions/setup-node@v3
