@@ -86,6 +86,11 @@ jobs:
       - name: Fix gradlew permissions
         run: chmod +x android/gradlew
       
+      - name: Update Android SDK version
+        run: |
+          sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' android/app/build.gradle
+          sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' android/app/build.gradle
+      
       - name: Build APK
         run: |
           cd android
