@@ -83,6 +83,9 @@ jobs:
         run: |
           npx cap sync android
       
+      - name: Fix gradlew permissions
+        run: chmod +x android/gradlew
+      
       - name: Build APK
         run: |
           cd android
