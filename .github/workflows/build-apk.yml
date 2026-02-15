@@ -14,9 +14,15 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     
-    - name: Extract android.zip
+    - name: Extract and setup project
       run: |
-        ls -la && unzip -o *.zip -d . || true
+        cd /home/runner/work/pokescanner/pokescanner
+        unzip -o "*.zip" -d temp_extract
+        cd temp_extract
+        find . -maxdepth 1 -type f -exec mv {} .. \;
+        find . -maxdepth 1 -type d ! -name . -exec mv {} .. \;
+        cd ..
+        rm -rf temp_extract
         ls -la
     
     - name: Setup Node.js
