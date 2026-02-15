@@ -16,7 +16,7 @@ jobs:
     
     - name: Extract android.zip
       run: |
-        unzip -o tEFUCmzlCEHlEOWq(2).zip -d .
+        unzip -o "tEFUCmzlCEHlEOWq(2).zip" -d .
         ls -la
     
     - name: Setup Node.js
