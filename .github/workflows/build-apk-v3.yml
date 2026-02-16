@@ -1,4 +1,4 @@
-name: Build Android APK v3
+name: Build Android APK
 
 on:
   push:
@@ -45,14 +45,33 @@ jobs:
       - name: Install Capacitor CLI
         run: npm install -g @capacitor/cli
       
-      - name: Sync Capacitor
+      - name: Initialize Android project
         run: |
-          if [ ! -d "android" ]; then
-            echo "Creating Android project..."
-            npx cap add android
-          else
-            echo "Android folder exists, syncing..."
+          rm -rf android/
+          
+          if [ ! -f "capacitor.config.ts" ]; then
+            cat > capacitor.config.ts << 'CONFIG'
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.pokescanner.app',
+  appName: 'PokeScanner',
+  webDir: 'dist',
+  server: {
+    androidScheme: 'https'
+  },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 0,
+    },
+  },
+};
+
+export default config;
+CONFIG
           fi
+          
+          npx cap add android
           npx cap sync android
       
       - name: Fix gradlew permissions
