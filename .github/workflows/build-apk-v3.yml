@@ -77,17 +77,24 @@ CONFIG
       - name: Fix gradlew permissions
         run: chmod +x android/gradlew
       
-      - name: Update Android SDK versions
+      - name: Fix build.gradle
         run: |
           if [ -f "android/app/build.gradle" ]; then
             sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' android/app/build.gradle
             sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' android/app/build.gradle
             sed -i 's/minSdkVersion [0-9]*/minSdkVersion 24/g' android/app/build.gradle
+            
+            if ! grep -q "android {" android/app/build.gradle; then
+              echo "ERROR: android block not found in build.gradle"
+              cat android/app/build.gradle
+              exit 1
+            fi
           fi
       
       - name: Build APK
         run: |
           cd android
+          ./gradlew clean
           ./gradlew assembleDebug --stacktrace
       
       - name: Upload APK artifact
