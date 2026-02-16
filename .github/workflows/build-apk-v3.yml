@@ -27,6 +27,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --no-frozen-lockfile
       
+      - name: Clean dist folder
+        run: rm -rf dist/
+      
       - name: Build web app
         run: pnpm run build
       
