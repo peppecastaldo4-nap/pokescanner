@@ -1,0 +1,136 @@
+name: Build Android APK v2
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Find and extract ZIP
+        run: |
+          ZIP_FILE=$(find . -maxdepth 1 -name "*.zip" -type f | head -1)
+          
+          if [ -z "$ZIP_FILE" ]; then
+            echo "ERROR: No ZIP file found"
+            exit 1
+          fi
+          
+          echo "Found ZIP: $ZIP_FILE"
+          unzip -q "$ZIP_FILE"
+          
+          PROJ_ROOT=$(find . -maxdepth 3 -name "package.json" -type f | head -1 | xargs dirname)
+          
+          if [ -z "$PROJ_ROOT" ]; then
+            echo "ERROR: package.json not found"
+            exit 1
+          fi
+          
+          echo "Project root: $PROJ_ROOT"
+          cp -r "$PROJ_ROOT"/* .
+          cp -r "$PROJ_ROOT"/.[^.]* . 2>/dev/null || true
+          
+          ls -la package.json
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+      
+      - name: Install dependencies
+        run: pnpm install --no-frozen-lockfile
+      
+      - name: Build web app
+        run: pnpm run build
+      
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+      
+      - name: Install Capacitor CLI
+        run: npm install -g @capacitor/cli
+      
+      - name: Initialize Capacitor Android
+        run: |
+          if [ ! -d "android" ]; then
+            echo "Creating Android project..."
+            npx cap add android
+          fi
+          
+          if [ ! -f "capacitor.config.ts" ]; then
+            cat > capacitor.config.ts << 'CAPACITOR'
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.pokescanner.app',
+  appName: 'PokeScanner',
+  webDir: 'dist',
+  server: {
+    androidScheme: 'https'
+  },
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 0,
+    },
+  },
+};
+
+export default config;
+CAPACITOR
+          fi
+          
+          npx cap sync android
+      
+      - name: Fix gradlew permissions
+        run: chmod +x android/gradlew
+      
+      - name: Update Android SDK versions
+        run: |
+          if [ -f "android/app/build.gradle" ]; then
+            sed -i 's/compileSdkVersion [0-9]*/compileSdkVersion 34/g' android/app/build.gradle
+            sed -i 's/targetSdkVersion [0-9]*/targetSdkVersion 34/g' android/app/build.gradle
+            sed -i 's/minSdkVersion [0-9]*/minSdkVersion 24/g' android/app/build.gradle
+          fi
+      
+      - name: Build APK
+        run: |
+          cd android
+          ./gradlew assembleDebug --stacktrace
+      
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pokescanner-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
+      
+      - name: Create Release
+        if: success()
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: apk-${{ github.run_number }}
+          release_name: APK Build #${{ github.run_number }}
+          body: |
+            ✅ APK built successfully!
+            Download: pokescanner-apk
+          draft: false
+          prerelease: false
